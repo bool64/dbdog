@@ -1,11 +1,11 @@
 # Cucumber database steps for Go
 
-[![Build Status](https://github.com/bool64/httpdog/workflows/test/badge.svg)](https://github.com/bool64/httpdog/actions?query=branch%3Amaster+workflow%3Atest)
-[![Coverage Status](https://codecov.io/gh/bool64/httpdog/branch/master/graph/badge.svg)](https://codecov.io/gh/bool64/httpdog)
-[![GoDevDoc](https://img.shields.io/badge/dev-doc-00ADD8?logo=go)](https://pkg.go.dev/github.com/bool64/httpdog)
-[![Time Tracker](https://wakatime.com/badge/github/bool64/httpdog.svg)](https://wakatime.com/badge/github/bool64/httpdog)
-![Code lines](https://sloc.xyz/github/bool64/httpdog/?category=code)
-![Comments](https://sloc.xyz/github/bool64/httpdog/?category=comments)
+[![Build Status](https://github.com/bool64/dbdog/workflows/test/badge.svg)](https://github.com/bool64/dbdog/actions?query=branch%3Amaster+workflow%3Atest)
+[![Coverage Status](https://codecov.io/gh/bool64/dbdog/branch/master/graph/badge.svg)](https://codecov.io/gh/bool64/dbdog)
+[![GoDevDoc](https://img.shields.io/badge/dev-doc-00ADD8?logo=go)](https://pkg.go.dev/github.com/bool64/dbdog)
+[![Time Tracker](https://wakatime.com/badge/github/bool64/dbdog.svg)](https://wakatime.com/badge/github/bool64/dbdog)
+![Code lines](https://sloc.xyz/github/bool64/dbdog/?category=code)
+![Comments](https://sloc.xyz/github/bool64/dbdog/?category=comments)
 
 This module implements database-related step definitions
 for [`github.com/cucumber/godog`](https://github.com/cucumber/godog).
