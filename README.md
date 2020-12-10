@@ -115,3 +115,5 @@ Assert no rows exist in a database.
 ```gherkin
 And no rows are available in table "my_another_table" of database "my_db"
 ```
+
+The name of database instance `of database "my_db"` can be omitted in all steps, in such case `"default"` will be used from database instance name.
