@@ -110,32 +110,68 @@ import (
 	"github.com/swaggest/form"
 )
 
-// RegisterContext adds database manager context to test suite.
-func (m *Manager) RegisterContext(s *godog.ScenarioContext) {
+// DefaultDatabase is the name of default database.
+const DefaultDatabase = "default"
+
+// RegisterSteps adds database manager context to test suite.
+func (m *Manager) RegisterSteps(s *godog.ScenarioContext) {
 	s.Step(`no rows in table "([^"]*)" of database "([^"]*)"$`,
 		m.noRowsInTableOfDatabase)
+
+	s.Step(`no rows in table "([^"]*)"$`,
+		func(tableName string) error {
+			return m.noRowsInTableOfDatabase(tableName, DefaultDatabase)
+		})
 
 	s.Step(`these rows are stored in table "([^"]*)" of database "([^"]*)":$`,
 		m.theseRowsAreStoredInTableOfDatabase)
 
+	s.Step(`these rows are stored in table "([^"]*)":$`,
+		func(tableName string, data *godog.Table) error {
+			return m.theseRowsAreStoredInTableOfDatabase(tableName, DefaultDatabase, data)
+		})
+
 	s.Step(`only these rows are available in table "([^"]*)" of database "([^"]*)":$`,
 		m.onlyTheseRowsAreAvailableInTableOfDatabase)
+
+	s.Step(`only these rows are available in table "([^"]*)":$`,
+		func(tableName string, data *godog.Table) error {
+			return m.onlyTheseRowsAreAvailableInTableOfDatabase(tableName, DefaultDatabase, data)
+		})
 
 	s.Step(`no rows are available in table "([^"]*)" of database "([^"]*)"$`,
 		m.noRowsAreAvailableInTableOfDatabase)
 
+	s.Step(`no rows are available in table "([^"]*)"$`,
+		func(tableName string) error {
+			return m.noRowsAreAvailableInTableOfDatabase(tableName, DefaultDatabase)
+		})
+
 	s.Step(`these rows are available in table "([^"]*)" of database "([^"]*)":$`,
 		m.theseRowsAreAvailableInTableOfDatabase)
+
+	s.Step(`these rows are available in table "([^"]*)":$`,
+		func(tableName string, data *godog.Table) error {
+			return m.theseRowsAreAvailableInTableOfDatabase(tableName, DefaultDatabase, data)
+		})
 
 	s.BeforeScenario(func(sc *godog.Scenario) {
 		m.vars = make(map[string]string)
 	})
 }
 
+// NewManager initializes instance of database Manager.
+func NewManager() *Manager {
+	return &Manager{
+		TableMapper: NewTableMapper(),
+		Instances:   make(map[string]Instance),
+		VarPrefix:   "$",
+	}
+}
+
 // Manager owns database connections.
 type Manager struct {
 	TableMapper *TableMapper
-	SqMapper    *sqluct.Mapper
 	Instances   map[string]Instance
 
 	// VarPrefix determines which cell values should be collected as vars and replaced with values in usages.
@@ -155,6 +191,23 @@ type Instance struct {
 	// They are executed after `no rows in table` step.
 	// Example: `"my_table": []string{"ALTER SEQUENCE my_table_id_seq RESTART"}`.
 	PostCleanup map[string][]string
+}
+
+// RegisterJSONTypes registers types of provided values to unmarshal as JSON when decoding from string.
+//
+// Arguments should match types of fields in row entities.
+// If field is a pointer, argument should be a pointer: e.g. new(MyType).
+// If field is not a pointer, argument should not be a pointer: e.g. MyType{}.
+func (m *Manager) RegisterJSONTypes(values ...interface{}) {
+	for _, t := range values {
+		rt := reflect.TypeOf(t)
+		m.TableMapper.Decoder.RegisterFunc(func(s string) (interface{}, error) {
+			v := reflect.New(rt)
+			err := json.Unmarshal([]byte(s), v.Interface())
+
+			return reflect.Indirect(v).Interface(), err
+		}, t)
+	}
 }
 
 func (m *Manager) noRowsInTableOfDatabase(tableName, dbName string) error {
@@ -383,20 +436,22 @@ func (t *tableQuery) receiveRow(index int, row interface{}, _ []string, rawValue
 
 	colOption := sqluct.Columns(t.colNames...)
 
-	_, argsExp, err := t.storage.InsertStmt("table", row, colOption).ToSql()
-	if err != nil {
-		return err
-	}
-
-	_, argsRcv, err := t.storage.InsertStmt("table", dest, colOption).ToSql()
-	if err != nil {
-		return err
-	}
-
 	pc := t.postCheck
 	t.postCheck = t.postCheck[:0]
 
-	return t.doPostCheck(t.colNames, pc, argsExp, argsRcv, rawValues)
+	return t.doPostCheck(t.colNames, pc,
+		combine(t.storage.Mapper.ColumnsValues(reflect.ValueOf(row), colOption)),
+		combine(t.storage.Mapper.ColumnsValues(reflect.ValueOf(dest), colOption)),
+		rawValues)
+}
+
+func combine(keys []string, vals []interface{}) map[string]interface{} {
+	m := make(map[string]interface{}, len(keys))
+	for i, k := range keys {
+		m[k] = vals[i]
+	}
+
+	return m
 }
 
 func (t *tableQuery) skipDecode(column, value string) bool {
@@ -407,7 +462,7 @@ func (t *tableQuery) skipDecode(column, value string) bool {
 		t.postCheck = append(t.postCheck, column)
 		t.skipWhereCols = append(t.skipWhereCols, column)
 
-		return true
+		return false
 	}
 
 	// If value looks like a variable name and does not have an associated value yet,
@@ -461,10 +516,10 @@ func (m *Manager) assertRows(tableName, dbName string, data *godog.Table, exhaus
 	return err
 }
 
-func (t *tableQuery) doPostCheck(colNames []string, postCheck []string, argsExp, argsRcv []interface{}, rawValues []string) error {
+func (t *tableQuery) doPostCheck(colNames []string, postCheck []string, argsExp, argsRcv map[string]interface{}, rawValues []string) error {
 	for i, name := range colNames {
 		if strings.HasPrefix(rawValues[i], t.varPrefix) {
-			s, err := t.mapper.Encode(argsRcv[i])
+			s, err := t.mapper.Encode(argsRcv[name])
 			if err != nil {
 				return err
 			}
@@ -488,10 +543,10 @@ func (t *tableQuery) doPostCheck(colNames []string, postCheck []string, argsExp,
 
 		t := testingT{}
 
-		assert.Equal(&t, argsExp[i], argsRcv[i])
+		assert.Equal(&t, argsExp[name], argsRcv[name])
 
 		if t.Err != nil {
-			return fmt.Errorf("unexpected row contents at column %s: %w", name, t.Err)
+			return fmt.Errorf("unexpected row contents at column %s (%#v, %#v): %w", name, argsExp[name], argsRcv[name], t.Err)
 		}
 	}
 
@@ -502,20 +557,21 @@ func (m *Manager) checkInit() {
 	if m.TableMapper == nil {
 		m.TableMapper = NewTableMapper()
 	}
-
-	if m.SqMapper == nil {
-		m.SqMapper = &sqluct.Mapper{}
-	}
 }
 
 // NewTableMapper creates tablestruct.TableMapper with db field decoder.
 func NewTableMapper() *TableMapper {
 	tm := &TableMapper{
 		Decoder: form.NewDecoder(),
+		Encoder: form.NewEncoder(),
 	}
 	tm.Decoder.SetMode(form.ModeExplicit)
 	tm.Decoder.SetTagName("db")
 	form.RegisterSQLNullTypesDecodeFunc(tm.Decoder)
+
+	tm.Encoder.SetMode(form.ModeExplicit)
+	tm.Encoder.SetTagName("db")
+	form.RegisterSQLNullTypesEncodeFunc(tm.Encoder, "NULL")
 
 	return tm
 }
