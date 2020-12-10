@@ -145,7 +145,7 @@ func TestManager_RegisterContext(t *testing.T) {
 		Name:                 "DatabaseContext",
 		TestSuiteInitializer: nil,
 		ScenarioInitializer: func(s *godog.ScenarioContext) {
-			dbm.RegisterContext(s)
+			dbm.RegisterSteps(s)
 		},
 		Options: &godog.Options{
 			Format:    "pretty",
@@ -203,7 +203,7 @@ func TestManager_RegisterContext_fail(t *testing.T) {
 		Name:                 "DatabaseContext",
 		TestSuiteInitializer: nil,
 		ScenarioInitializer: func(s *godog.ScenarioContext) {
-			dbm.RegisterContext(s)
+			dbm.RegisterSteps(s)
 		},
 		Options: &godog.Options{
 			Format: "pretty",

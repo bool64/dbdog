@@ -8,8 +8,8 @@ github.com/bool64/ctxd v0.1.3/go.mod h1:rhUkoNE4mKFSJmo9l+78u2j+FVQifRCj0MHRhyZ2
 github.com/bool64/dev v0.1.0/go.mod h1:pn52JC52uSgpazChx9CeXyG+S3sW2V36HHoLNBbscdg=
 github.com/bool64/dev v0.1.10 h1:4L6eLD+qo1QgWDy+Y7OhJxi/gLwOAuV1rd07noMc3dU=
 github.com/bool64/dev v0.1.10/go.mod h1:pn52JC52uSgpazChx9CeXyG+S3sW2V36HHoLNBbscdg=
-github.com/bool64/sqluct v0.1.0 h1:SukfJYII3MSvKQWq+LVKeqwja8IbIIwdgmCsb0DX+D4=
-github.com/bool64/sqluct v0.1.0/go.mod h1:Ogo0FvuPkuFMAJcxsxAlOyDTgs5s3SeEH0DOXRP8/Rk=
+github.com/bool64/sqluct v0.1.1 h1:u54NdgKNHLzZS8YOGeqZuVZ6BD5XhgVchC1w5KVw/+o=
+github.com/bool64/sqluct v0.1.1/go.mod h1:Ogo0FvuPkuFMAJcxsxAlOyDTgs5s3SeEH0DOXRP8/Rk=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/cucumber/gherkin-go/v11 v11.0.0 h1:cwVwN1Qn2VRSfHZNLEh5x00tPBmZcjATBWDpxsR5Xug=
 github.com/cucumber/gherkin-go/v11 v11.0.0/go.mod h1:CX33k2XU2qog4e+TFjOValoq6mIUq0DmVccZs238R9w=
