@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/cucumber/godog"
 	"github.com/cucumber/messages-go/v10"
@@ -116,6 +117,10 @@ func (m *TableMapper) IterateTable(c IterateConfig) error {
 
 			if c.SkipDecode != nil && c.SkipDecode(colNames[i], cell.Value) {
 				continue
+			}
+
+			if strings.HasSuffix(cell.Value, "::string") {
+				cell.Value = strings.TrimSuffix(cell.Value, "::string")
 			}
 
 			if v, found := c.Replaces[cell.Value]; found {
