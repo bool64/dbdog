@@ -541,16 +541,26 @@ func (t *tableQuery) doPostCheck(colNames []string, postCheck []string, argsExp,
 			continue
 		}
 
-		t := testingT{}
+		te := testingT{}
 
-		assert.Equal(&t, argsExp[name], argsRcv[name])
+		assert.Equal(&te, indirect(argsExp[name]), indirect(argsRcv[name]))
 
-		if t.Err != nil {
-			return fmt.Errorf("unexpected row contents at column %s (%#v, %#v): %w", name, argsExp[name], argsRcv[name], t.Err)
+		if te.Err != nil {
+			return fmt.Errorf("unexpected row contents at column %s (%#v, %#v): %w",
+				name, indirect(argsExp[name]), indirect(argsRcv[name]), te.Err)
 		}
 	}
 
 	return nil
+}
+
+func indirect(v interface{}) interface{} {
+	rv := reflect.ValueOf(v)
+	for rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+	}
+
+	return rv.Interface()
 }
 
 func (m *Manager) checkInit() {
