@@ -37,7 +37,7 @@ func mustParseTime(value string) time.Time {
 
 func TestManager_RegisterContext(t *testing.T) {
 	type RowKey struct {
-		Foo string         `db:"foo"`
+		Foo *string        `db:"foo"`
 		Bar sql.NullString `db:"bar"`
 	}
 
