@@ -2,6 +2,7 @@ package dbdog_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/bool64/dbdog"
 	"github.com/cucumber/godog"
@@ -57,4 +58,26 @@ func TestMapper_SliceFromTable(t *testing.T) {
 	assert.Equal(t, "b1", result[0].B)
 	assert.Equal(t, 2, result[1].A)
 	assert.Equal(t, "b2", result[1].B)
+}
+
+func TestTableMapper_Encode(t *testing.T) {
+	tm := dbdog.TableMapper{}
+
+	for _, tc := range []struct {
+		v interface{}
+		s string
+	}{
+		{"abc", "abc"},
+		{123, "123"},
+		{123.45, "123.45"},
+		{nil, "NULL"},
+		{(*time.Time)(nil), "NULL"},
+		{time.Time{}, "0001-01-01T00:00:00Z"},
+		{&time.Time{}, "0001-01-01T00:00:00Z"},
+		{new(int), "0"},
+	} {
+		s, err := tm.Encode(tc.v)
+		assert.NoError(t, err)
+		assert.Equal(t, tc.s, s)
+	}
 }

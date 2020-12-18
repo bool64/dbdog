@@ -581,7 +581,7 @@ func NewTableMapper() *TableMapper {
 
 	tm.Encoder.SetMode(form.ModeExplicit)
 	tm.Encoder.SetTagName("db")
-	form.RegisterSQLNullTypesEncodeFunc(tm.Encoder, "NULL")
+	form.RegisterSQLNullTypesEncodeFunc(tm.Encoder, null)
 
 	return tm
 }
@@ -681,7 +681,7 @@ func (t *tableQuery) formatRow(rows *sqlx.Rows, cols []string, width map[string]
 		v := ""
 
 		if *val == nil {
-			v = "NULL"
+			v = null
 		} else if b, ok := (*val).([]byte); ok {
 			v = string(b)
 		} else {

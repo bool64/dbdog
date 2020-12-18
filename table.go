@@ -11,16 +11,35 @@ import (
 	"github.com/swaggest/form"
 )
 
+const null = "NULL"
+
 // TableMapper maps data from Go value to string and back.
 type TableMapper struct {
 	Decoder *form.Decoder
 	Encoder *form.Encoder
 }
 
+func isNil(v interface{}) bool {
+	if v == nil {
+		return true
+	}
+
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Ptr && rv.IsZero() {
+		return true
+	}
+
+	return false
+}
+
 // Encode converts Go value to string.
 func (m *TableMapper) Encode(v interface{}) (string, error) {
 	if m.Encoder == nil {
 		m.Encoder = form.NewEncoder()
+	}
+
+	if isNil(v) {
+		return null, nil
 	}
 
 	vv, err := m.Encoder.Encode(v)
@@ -84,6 +103,19 @@ var (
 	errRowRequired   = errors.New("header and at least one row required in table")
 )
 
+func itemType(v interface{}) (reflect.Type, error) {
+	itemType := reflect.TypeOf(v)
+	if itemType == nil {
+		return nil, errNilItemStruct
+	}
+
+	if itemType.Kind() == reflect.Ptr {
+		itemType = itemType.Elem()
+	}
+
+	return itemType, nil
+}
+
 // IterateTable walks gherkin table calling row receiver with mapped row.
 // If receiver returns error iteration stops and error is propagated.
 func (m *TableMapper) IterateTable(c IterateConfig) error {
@@ -97,13 +129,9 @@ func (m *TableMapper) IterateTable(c IterateConfig) error {
 
 	colNames := ColNames(c.Data.Rows[0].Cells)
 
-	itemType := reflect.TypeOf(c.Item)
-	if itemType == nil {
-		return errNilItemStruct
-	}
-
-	if itemType.Kind() == reflect.Ptr {
-		itemType = itemType.Elem()
+	itemType, err := itemType(c.Item)
+	if err != nil {
+		return err
 	}
 
 	values := make(map[string][]string, len(colNames))
@@ -127,7 +155,7 @@ func (m *TableMapper) IterateTable(c IterateConfig) error {
 				cell.Value = v
 			}
 
-			if cell.Value != "NULL" {
+			if cell.Value != null {
 				values[colNames[i]] = []string{cell.Value}
 			} else {
 				delete(values, colNames[i])
