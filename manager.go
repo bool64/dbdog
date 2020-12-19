@@ -103,6 +103,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/bool64/shared"
 	"github.com/bool64/sqluct"
 	"github.com/cucumber/godog"
 	"github.com/jmoiron/sqlx"
@@ -156,7 +157,11 @@ func (m *Manager) RegisterSteps(s *godog.ScenarioContext) {
 		})
 
 	s.BeforeScenario(func(sc *godog.Scenario) {
-		m.vars = make(map[string]string)
+		if m.Vars == nil {
+			m.Vars = &shared.Vars{}
+		}
+
+		m.Vars.Reset()
 	})
 }
 
@@ -165,7 +170,6 @@ func NewManager() *Manager {
 	return &Manager{
 		TableMapper: NewTableMapper(),
 		Instances:   make(map[string]Instance),
-		VarPrefix:   "$",
 	}
 }
 
@@ -174,11 +178,8 @@ type Manager struct {
 	TableMapper *TableMapper
 	Instances   map[string]Instance
 
-	// VarPrefix determines which cell values should be collected as vars and replaced with values in usages.
-	// Default is '$', e.g. $id1 would be treated as variable.
-	VarPrefix string
-
-	vars map[string]string
+	// Vars allow sharing vars with other steps.
+	Vars *shared.Vars
 }
 
 // Instance provides database instance.
@@ -312,10 +313,9 @@ type tableQuery struct {
 	data          *godog.Table
 	row           interface{}
 	colNames      []string
-	varPrefix     string
 	skipWhereCols []string
 	postCheck     []string
-	vars          map[string]string
+	vars          *shared.Vars
 }
 
 func (t *tableQuery) exposeContents(err error) error {
@@ -384,15 +384,10 @@ func (m *Manager) makeTableQuery(tableName, dbName string, data *godog.Table) (*
 		table:   tableName,
 		data:    data,
 		row:     row,
-		vars:    m.vars,
+		vars:    m.Vars,
 	}
 
 	if t.data != nil {
-		t.varPrefix = m.VarPrefix
-		if t.varPrefix == "" {
-			t.varPrefix = "$"
-		}
-
 		t.colNames = ColNames(data.Rows[0].Cells)
 		t.skipWhereCols = make([]string, 0, len(t.colNames))
 		t.postCheck = make([]string, 0, len(t.colNames))
@@ -467,8 +462,8 @@ func (t *tableQuery) skipDecode(column, value string) bool {
 
 	// If value looks like a variable name and does not have an associated value yet,
 	// it is removed from decoding and WHERE condition.
-	if strings.HasPrefix(value, t.varPrefix) {
-		if _, found := t.vars[value]; found {
+	if t.vars.IsVar(value) {
+		if _, found := t.vars.Get(value); found {
 			return false
 		}
 
@@ -504,12 +499,27 @@ func (m *Manager) assertRows(tableName, dbName string, data *godog.Table, exhaus
 		return nil
 	}
 
+	var replaces map[string]string
+
+	if vars := t.vars.GetAll(); len(vars) > 0 {
+		replaces = make(map[string]string, len(vars))
+
+		for k, v := range vars {
+			s, err := m.TableMapper.Encode(v)
+			if err != nil {
+				return err
+			}
+
+			replaces[k] = s
+		}
+	}
+
 	// Iterating rows.
 	err = m.TableMapper.IterateTable(IterateConfig{
 		Data:       data,
 		Item:       t.row,
 		SkipDecode: t.skipDecode,
-		Replaces:   t.vars,
+		Replaces:   replaces,
 		ReceiveRow: t.receiveRow,
 	})
 
@@ -518,13 +528,8 @@ func (m *Manager) assertRows(tableName, dbName string, data *godog.Table, exhaus
 
 func (t *tableQuery) doPostCheck(colNames []string, postCheck []string, argsExp, argsRcv map[string]interface{}, rawValues []string) error {
 	for i, name := range colNames {
-		if strings.HasPrefix(rawValues[i], t.varPrefix) {
-			s, err := t.mapper.Encode(argsRcv[name])
-			if err != nil {
-				return err
-			}
-
-			t.vars[rawValues[i]] = s
+		if t.vars.IsVar(rawValues[i]) {
+			t.vars.Set(rawValues[i], argsRcv[name])
 		}
 
 		pc := false
