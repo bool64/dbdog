@@ -86,9 +86,9 @@ func TestManager_RegisterContext(t *testing.T) {
 	//      | 3  | foo-2 | hij      | 2021-01-03T00:00:00Z | 2021-01-03T00:00:00Z |
 	mock.ExpectQuery(`SELECT COUNT\(1\) AS c FROM my_table`).WillReturnRows(sqlmock.NewRows([]string{"c"}).AddRow(3))
 
-	mock.ExpectQuery(`SELECT .+ FROM my_table WHERE foo = \$1 AND bar = \$2 AND created_at = \$3 AND deleted_at IS NULL`).
+	mock.ExpectQuery(`SELECT .+ FROM my_table WHERE bar = \$1 AND created_at = \$2 AND deleted_at IS NULL`).
 		WithArgs(
-			"foo-1", "abc", mustParseTime("2021-01-01T00:00:00Z"),
+			"abc", mustParseTime("2021-01-01T00:00:00Z"),
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "foo", "bar", "created_at", "deleted_at"}).
 			AddRow(1, "foo-1", "abc", mustParseTime("2021-01-01T00:00:00Z"), nil))

@@ -475,6 +475,34 @@ func (t *tableQuery) skipDecode(column, value string) bool {
 	return false
 }
 
+func (t *tableQuery) makeReplaces(onSetErr *error) (map[string]string, error) {
+	replaces := make(map[string]string)
+
+	if vars := t.vars.GetAll(); len(vars) > 0 {
+		replaces = make(map[string]string, len(vars))
+
+		for k, v := range vars {
+			s, err := t.mapper.Encode(v)
+			if err != nil {
+				return nil, err
+			}
+
+			replaces[k] = s
+		}
+	}
+
+	t.vars.OnSet(func(key string, val interface{}) {
+		s, err := t.mapper.Encode(val)
+		if err != nil {
+			*onSetErr = err
+		}
+
+		replaces[key] = s
+	})
+
+	return replaces, nil
+}
+
 func (m *Manager) assertRows(tableName, dbName string, data *godog.Table, exhaustiveList bool) (err error) {
 	t, err := m.makeTableQuery(tableName, dbName, data)
 	if err != nil {
@@ -499,19 +527,11 @@ func (m *Manager) assertRows(tableName, dbName string, data *godog.Table, exhaus
 		return nil
 	}
 
-	var replaces map[string]string
+	var onSetErr error
 
-	if vars := t.vars.GetAll(); len(vars) > 0 {
-		replaces = make(map[string]string, len(vars))
-
-		for k, v := range vars {
-			s, err := m.TableMapper.Encode(v)
-			if err != nil {
-				return err
-			}
-
-			replaces[k] = s
-		}
+	replaces, err := t.makeReplaces(&onSetErr)
+	if err != nil {
+		return err
 	}
 
 	// Iterating rows.
@@ -522,6 +542,10 @@ func (m *Manager) assertRows(tableName, dbName string, data *godog.Table, exhaus
 		Replaces:   replaces,
 		ReceiveRow: t.receiveRow,
 	})
+
+	if err == nil && onSetErr != nil {
+		err = onSetErr
+	}
 
 	return err
 }
