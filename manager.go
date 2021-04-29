@@ -108,7 +108,7 @@ import (
 	"github.com/cucumber/godog"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
-	"github.com/swaggest/form"
+	"github.com/swaggest/form/v5"
 )
 
 // DefaultDatabase is the name of default database.
@@ -329,7 +329,7 @@ func (t *tableQuery) exposeContents(err error) error {
 
 	table, queryErr := t.queryExistingRows(t.storage, colNames, qb)
 	if queryErr != nil {
-		err = fmt.Errorf("%w, failed to query existing rows: %v", err, queryErr) // nolint:errorlint
+		err = fmt.Errorf("%w, failed to query existing rows: %v", err, queryErr)
 	} else {
 		err = fmt.Errorf("%w, rows available:\n%v", err, table)
 	}
@@ -707,7 +707,7 @@ func (t *tableQuery) formatRow(rows *sqlx.Rows, cols []string, width map[string]
 			return fmt.Errorf("%w of %T", errWrongType, columnPointers[i])
 		}
 
-		v := ""
+		var v string
 
 		if *val == nil {
 			v = null

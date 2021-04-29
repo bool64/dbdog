@@ -8,7 +8,7 @@ import (
 
 	"github.com/cucumber/godog"
 	"github.com/cucumber/messages-go/v10"
-	"github.com/swaggest/form"
+	"github.com/swaggest/form/v5"
 )
 
 const null = "NULL"
