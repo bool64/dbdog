@@ -74,6 +74,13 @@ And these rows are stored in table "my_table" of database "my_db"
 | 3  | foo-2 | hij | 2021-01-03T00:00:00Z | 2021-01-03T00:00:00Z |
 ```
 
+```gherkin
+And rows from this file are stored in table "my_table" of database "my_db"
+ """
+ path/to/rows.csv
+ """
+```
+
 Assert rows existence in a database.
 
 For each row in gherkin table database is queried to find a row with `WHERE` condition that includes provided column
@@ -99,6 +106,13 @@ Then these rows are available in table "my_table" of database "my_db"
 | $id3 | foo-2 | hij | 2021-01-03T00:00:00Z | 2021-01-03T00:00:00Z |
 ```
 
+```gherkin
+Then rows from this file are available in table "my_table" of database "my_db"
+ """
+ path/to/rows.csv
+ """
+```
+
 It is possible to check table contents exhaustively by adding "only" to step statement. Such assertion will also make
 sure that total number of rows in database table matches number of rows in gherkin table.
 
@@ -108,6 +122,13 @@ Then only these rows are available in table "my_table" of database "my_db"
 | $id1 | foo-1 | abc | 2021-01-01T00:00:00Z | NULL                 |
 | $id2 | foo-1 | def | 2021-01-02T00:00:00Z | 2021-01-03T00:00:00Z |
 | $id3 | foo-2 | hij | 2021-01-03T00:00:00Z | 2021-01-03T00:00:00Z |
+```
+
+```gherkin
+Then only rows from this file are available in table "my_table" of database "my_db"
+ """
+ path/to/rows.csv
+ """
 ```
 
 Assert no rows exist in a database.

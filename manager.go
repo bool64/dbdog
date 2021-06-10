@@ -49,13 +49,20 @@
 //
 //   	Given there are no rows in table "my_table" of database "my_db"
 //
-// Populate rows in a database.
+// Populate rows in a database with a gherkin table.
 //
 //	   And these rows are stored in table "my_table" of database "my_db"
 //		 | id | foo   | bar | created_at           | deleted_at           |
 //		 | 1  | foo-1 | abc | 2021-01-01T00:00:00Z | NULL                 |
 //		 | 2  | foo-1 | def | 2021-01-02T00:00:00Z | 2021-01-03T00:00:00Z |
 //		 | 3  | foo-2 | hij | 2021-01-03T00:00:00Z | 2021-01-03T00:00:00Z |
+//
+//  Or with an CSV file
+//
+//	   And rows from this file are stored in table "my_table" of database "my_db"
+//		 """
+//		 path/to/rows.csv
+//		 """
 //
 // Assert rows existence in a database.
 //
@@ -80,6 +87,13 @@
 //		 | $id2 | foo-1 | def | 2021-01-02T00:00:00Z | 2021-01-03T00:00:00Z |
 //		 | $id3 | foo-2 | hij | 2021-01-03T00:00:00Z | 2021-01-03T00:00:00Z |
 //
+// Rows can be also loaded from CSV file.
+//
+//	   Then rows from this file are available in table "my_table" of database "my_db"
+//		 """
+//		 path/to/rows.csv
+//		 """
+//
 // It is possible to check table contents exhaustively by adding "only" to step statement. Such assertion will also
 // make sure that total number of rows in database table matches number of rows in gherkin table.
 //
@@ -89,6 +103,13 @@
 //		 | $id2 | foo-1 | def | 2021-01-02T00:00:00Z | 2021-01-03T00:00:00Z |
 //		 | $id3 | foo-2 | hij | 2021-01-03T00:00:00Z | 2021-01-03T00:00:00Z |
 //
+// Rows can be also loaded from CSV file.
+//
+//	   Then only rows from this file are available in table "my_table" of database "my_db"
+//		 """
+//		 path/to/rows.csv
+//		 """
+//
 // Assert no rows exist in a database.
 //
 //	   And no rows are available in table "my_another_table" of database "my_db"
@@ -96,16 +117,20 @@ package dbdog
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/bool64/shared"
 	"github.com/bool64/sqluct"
 	"github.com/cucumber/godog"
+	"github.com/cucumber/messages-go/v10"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/swaggest/form/v5"
@@ -116,6 +141,18 @@ const DefaultDatabase = "default"
 
 // RegisterSteps adds database manager context to test suite.
 func (m *Manager) RegisterSteps(s *godog.ScenarioContext) {
+	m.registerPrerequisites(s)
+	m.registerAssertions(s)
+	s.BeforeScenario(func(sc *godog.Scenario) {
+		if m.Vars == nil {
+			m.Vars = &shared.Vars{}
+		}
+
+		m.Vars.Reset()
+	})
+}
+
+func (m *Manager) registerPrerequisites(s *godog.ScenarioContext) {
 	s.Step(`no rows in table "([^"]*)" of database "([^"]*)"$`,
 		m.noRowsInTableOfDatabase)
 
@@ -124,18 +161,36 @@ func (m *Manager) RegisterSteps(s *godog.ScenarioContext) {
 			return m.noRowsInTableOfDatabase(tableName, DefaultDatabase)
 		})
 
-	s.Step(`these rows are stored in table "([^"]*)" of database "([^"]*)":$`,
+	s.Step(`these rows are stored in table "([^"]*)" of database "([^"]*)"[:]?$`,
 		m.theseRowsAreStoredInTableOfDatabase)
 
-	s.Step(`these rows are stored in table "([^"]*)":$`,
+	s.Step(`rows from this file are stored in table "([^"]*)" of database "([^"]*)"[:]?$`,
+		m.rowsFromThisFileAreStoredInTableOfDatabase)
+
+	s.Step(`these rows are stored in table "([^"]*)"[:]?$`,
 		func(tableName string, data *godog.Table) error {
 			return m.theseRowsAreStoredInTableOfDatabase(tableName, DefaultDatabase, data)
 		})
 
-	s.Step(`only these rows are available in table "([^"]*)" of database "([^"]*)":$`,
+	s.Step(`rows from this file are stored in table "([^"]*)"[:]?$`,
+		func(tableName string, filePath *godog.DocString) error {
+			return m.rowsFromThisFileAreStoredInTableOfDatabase(tableName, DefaultDatabase, filePath)
+		})
+}
+
+func (m *Manager) registerAssertions(s *godog.ScenarioContext) {
+	s.Step(`only rows from this file are available in table "([^"]*)" of database "([^"]*)"[:]?$`,
+		m.onlyRowsFromThisFileAreAvailableInTableOfDatabase)
+
+	s.Step(`only these rows are available in table "([^"]*)" of database "([^"]*)"[:]?$`,
 		m.onlyTheseRowsAreAvailableInTableOfDatabase)
 
-	s.Step(`only these rows are available in table "([^"]*)":$`,
+	s.Step(`only rows from this file are available in table "([^"]*)"[:]?$`,
+		func(tableName string, filePath *godog.DocString) error {
+			return m.onlyRowsFromThisFileAreAvailableInTableOfDatabase(tableName, DefaultDatabase, filePath)
+		})
+
+	s.Step(`only these rows are available in table "([^"]*)"[:]?$`,
 		func(tableName string, data *godog.Table) error {
 			return m.onlyTheseRowsAreAvailableInTableOfDatabase(tableName, DefaultDatabase, data)
 		})
@@ -148,21 +203,21 @@ func (m *Manager) RegisterSteps(s *godog.ScenarioContext) {
 			return m.noRowsAreAvailableInTableOfDatabase(tableName, DefaultDatabase)
 		})
 
-	s.Step(`these rows are available in table "([^"]*)" of database "([^"]*)":$`,
+	s.Step(`rows from this file are available in table "([^"]*)" of database "([^"]*)"[:]?$`,
+		m.rowsFromThisFileAreAvailableInTableOfDatabase)
+
+	s.Step(`these rows are available in table "([^"]*)" of database "([^"]*)"[:]?$`,
 		m.theseRowsAreAvailableInTableOfDatabase)
 
-	s.Step(`these rows are available in table "([^"]*)":$`,
+	s.Step(`rows from this file are available in table "([^"]*)"[:]?$`,
+		func(tableName string, filePath *godog.DocString) error {
+			return m.rowsFromThisFileAreAvailableInTableOfDatabase(tableName, DefaultDatabase, filePath)
+		})
+
+	s.Step(`these rows are available in table "([^"]*)"[:]?$`,
 		func(tableName string, data *godog.Table) error {
 			return m.theseRowsAreAvailableInTableOfDatabase(tableName, DefaultDatabase, data)
 		})
-
-	s.BeforeScenario(func(sc *godog.Scenario) {
-		if m.Vars == nil {
-			m.Vars = &shared.Vars{}
-		}
-
-		m.Vars.Reset()
-	})
 }
 
 // NewManager initializes instance of database Manager.
@@ -247,6 +302,58 @@ func (m *Manager) noRowsInTableOfDatabase(tableName, dbName string) error {
 	return err
 }
 
+var errMissingFileName = errors.New("missing file name")
+
+func loadTableFromFile(filePath *godog.DocString) (d *godog.Table, err error) {
+	if filePath == nil || filePath.String() == "" {
+		return nil, errMissingFileName
+	}
+
+	f, err := os.Open(filePath.Content)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		clErr := f.Close()
+		if clErr != nil && err == nil {
+			err = clErr
+		}
+	}()
+
+	c := csv.NewReader(f)
+
+	rows, err := c.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CSV: %w", err)
+	}
+
+	d = new(godog.Table)
+
+	for _, r := range rows {
+		row := new(messages.PickleStepArgument_PickleTable_PickleTableRow)
+
+		for _, c := range r {
+			row.Cells = append(row.Cells, &messages.PickleStepArgument_PickleTable_PickleTableRow_PickleTableCell{
+				Value: c,
+			})
+		}
+
+		d.Rows = append(d.Rows, row)
+	}
+
+	return d, nil
+}
+
+func (m *Manager) rowsFromThisFileAreStoredInTableOfDatabase(tableName, dbName string, filePath *godog.DocString) error {
+	data, err := loadTableFromFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to load rows from file: %w", err)
+	}
+
+	return m.theseRowsAreStoredInTableOfDatabase(tableName, dbName, data)
+}
+
 func (m *Manager) theseRowsAreStoredInTableOfDatabase(tableName, dbName string, data *godog.Table) error {
 	instance, ok := m.Instances[dbName]
 	if !ok {
@@ -286,12 +393,30 @@ func (m *Manager) theseRowsAreStoredInTableOfDatabase(tableName, dbName string, 
 	return err
 }
 
+func (m *Manager) onlyRowsFromThisFileAreAvailableInTableOfDatabase(tableName, dbName string, filePath *godog.DocString) error {
+	data, err := loadTableFromFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to load rows from file: %w", err)
+	}
+
+	return m.assertRows(tableName, dbName, data, true)
+}
+
 func (m *Manager) onlyTheseRowsAreAvailableInTableOfDatabase(tableName, dbName string, data *godog.Table) error {
 	return m.assertRows(tableName, dbName, data, true)
 }
 
 func (m *Manager) noRowsAreAvailableInTableOfDatabase(tableName, dbName string) error {
 	return m.assertRows(tableName, dbName, nil, true)
+}
+
+func (m *Manager) rowsFromThisFileAreAvailableInTableOfDatabase(tableName, dbName string, filePath *godog.DocString) error {
+	data, err := loadTableFromFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to load rows from file: %w", err)
+	}
+
+	return m.assertRows(tableName, dbName, data, false)
 }
 
 func (m *Manager) theseRowsAreAvailableInTableOfDatabase(tableName, dbName string, data *godog.Table) error {
@@ -598,12 +723,50 @@ func (m *Manager) checkInit() {
 	}
 }
 
+// ParseTime tries to parse time in multiple formats.
+func ParseTime(s string, formats ...string) (time.Time, error) {
+	if len(formats) == 0 {
+		formats = []string{
+			time.RFC3339Nano,
+			"2006-01-02T15:04:05.999999999",
+			"2006-01-02 15:04:05",
+			"2006-01-02",
+			time.RFC3339,
+		}
+	}
+
+	var (
+		t   time.Time
+		err error
+	)
+
+	for _, f := range formats {
+		if t, err = time.Parse(f, s); err == nil {
+			return t, nil
+		}
+	}
+
+	return t, err
+}
+
 // NewTableMapper creates tablestruct.TableMapper with db field decoder.
 func NewTableMapper() *TableMapper {
 	tm := &TableMapper{
 		Decoder: form.NewDecoder(),
 		Encoder: form.NewEncoder(),
 	}
+	tm.Decoder.RegisterFunc(func(s string) (interface{}, error) {
+		return ParseTime(s)
+	}, time.Time{})
+	tm.Decoder.RegisterFunc(func(s string) (interface{}, error) {
+		t, err := ParseTime(s)
+		if err != nil {
+			return nil, err
+		}
+
+		return &t, nil
+	}, new(time.Time))
+
 	tm.Decoder.SetMode(form.ModeExplicit)
 	tm.Decoder.SetTagName("db")
 	form.RegisterSQLNullTypesDecodeFunc(tm.Decoder)

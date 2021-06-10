@@ -48,7 +48,7 @@ func TestManager_RegisterContext(t *testing.T) {
 		DeletedAt *time.Time `db:"deleted_at"`
 	}
 
-	dbm := &dbdog.Manager{}
+	dbm := dbdog.NewManager()
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 
@@ -175,7 +175,7 @@ func TestManager_RegisterContext_fail(t *testing.T) {
 		DeletedAt *time.Time `db:"deleted_at"`
 	}
 
-	dbm := &dbdog.Manager{}
+	dbm := dbdog.NewManager()
 	db, mock, err := sqlmock.New()
 	assert.NoError(t, err)
 
