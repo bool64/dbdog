@@ -816,7 +816,6 @@ func (t *tableQuery) queryExistingRows(db *sqluct.Storage, colNames []string, qb
 	}
 
 	cnt := 0
-	result := "|"
 
 	for rows.Next() {
 		cnt++
@@ -827,7 +826,19 @@ func (t *tableQuery) queryExistingRows(db *sqluct.Storage, colNames []string, qb
 		}
 	}
 
+	result := t.renderRows(colNames, res, width, cnt)
+
+	return result, rows.Err()
+}
+
+func (t *tableQuery) renderRows(colNames []string, res map[string][]string, width map[string]int, cnt int) string {
+	result := "|"
+
 	for _, col := range colNames {
+		if _, ok := res[col]; !ok {
+			continue
+		}
+
 		result += " " + col + strings.Repeat(" ", width[col]-len(col)) + " |"
 	}
 
@@ -837,14 +848,19 @@ func (t *tableQuery) queryExistingRows(db *sqluct.Storage, colNames []string, qb
 		result += "|"
 
 		for _, col := range colNames {
-			v := res[col][i]
+			vv, ok := res[col]
+			if !ok {
+				continue
+			}
+
+			v := vv[i]
 			result += " " + v + strings.Repeat(" ", width[col]-len(v)) + " |"
 		}
 
 		result += "\n"
 	}
 
-	return result, rows.Err()
+	return result
 }
 
 func (t *tableQuery) formatRow(rows *sqlx.Rows, cols []string, width map[string]int, res map[string][]string) error {
