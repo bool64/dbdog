@@ -130,7 +130,6 @@ import (
 	"github.com/bool64/shared"
 	"github.com/bool64/sqluct"
 	"github.com/cucumber/godog"
-	"github.com/cucumber/messages-go/v10"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/swaggest/form/v5"
@@ -165,34 +164,40 @@ func (m *Manager) registerPrerequisites(s *godog.ScenarioContext) {
 		m.theseRowsAreStoredInTableOfDatabase)
 
 	s.Step(`rows from this file are stored in table "([^"]*)" of database "([^"]*)"[:]?$`,
-		m.rowsFromThisFileAreStoredInTableOfDatabase)
+		func(tableName, database string, filePath *godog.DocString) error {
+			return m.rowsFromThisFileAreStoredInTableOfDatabase(tableName, database, filePath.Content)
+		})
 
 	s.Step(`these rows are stored in table "([^"]*)"[:]?$`,
 		func(tableName string, data *godog.Table) error {
-			return m.theseRowsAreStoredInTableOfDatabase(tableName, DefaultDatabase, data)
+			return m.theseRowsAreStoredInTableOfDatabase(tableName, DefaultDatabase, Rows(data))
 		})
 
 	s.Step(`rows from this file are stored in table "([^"]*)"[:]?$`,
 		func(tableName string, filePath *godog.DocString) error {
-			return m.rowsFromThisFileAreStoredInTableOfDatabase(tableName, DefaultDatabase, filePath)
+			return m.rowsFromThisFileAreStoredInTableOfDatabase(tableName, DefaultDatabase, filePath.Content)
 		})
 }
 
 func (m *Manager) registerAssertions(s *godog.ScenarioContext) {
 	s.Step(`only rows from this file are available in table "([^"]*)" of database "([^"]*)"[:]?$`,
-		m.onlyRowsFromThisFileAreAvailableInTableOfDatabase)
+		func(tableName, database string, filePath *godog.DocString) error {
+			return m.onlyRowsFromThisFileAreAvailableInTableOfDatabase(tableName, database, filePath.Content)
+		})
 
 	s.Step(`only these rows are available in table "([^"]*)" of database "([^"]*)"[:]?$`,
-		m.onlyTheseRowsAreAvailableInTableOfDatabase)
+		func(tableName, database string, data *godog.Table) error {
+			return m.onlyTheseRowsAreAvailableInTableOfDatabase(tableName, database, Rows(data))
+		})
 
 	s.Step(`only rows from this file are available in table "([^"]*)"[:]?$`,
 		func(tableName string, filePath *godog.DocString) error {
-			return m.onlyRowsFromThisFileAreAvailableInTableOfDatabase(tableName, DefaultDatabase, filePath)
+			return m.onlyRowsFromThisFileAreAvailableInTableOfDatabase(tableName, DefaultDatabase, filePath.Content)
 		})
 
 	s.Step(`only these rows are available in table "([^"]*)"[:]?$`,
 		func(tableName string, data *godog.Table) error {
-			return m.onlyTheseRowsAreAvailableInTableOfDatabase(tableName, DefaultDatabase, data)
+			return m.onlyTheseRowsAreAvailableInTableOfDatabase(tableName, DefaultDatabase, Rows(data))
 		})
 
 	s.Step(`no rows are available in table "([^"]*)" of database "([^"]*)"$`,
@@ -211,12 +216,12 @@ func (m *Manager) registerAssertions(s *godog.ScenarioContext) {
 
 	s.Step(`rows from this file are available in table "([^"]*)"[:]?$`,
 		func(tableName string, filePath *godog.DocString) error {
-			return m.rowsFromThisFileAreAvailableInTableOfDatabase(tableName, DefaultDatabase, filePath)
+			return m.rowsFromThisFileAreAvailableInTableOfDatabase(tableName, DefaultDatabase, filePath.Content)
 		})
 
 	s.Step(`these rows are available in table "([^"]*)"[:]?$`,
 		func(tableName string, data *godog.Table) error {
-			return m.theseRowsAreAvailableInTableOfDatabase(tableName, DefaultDatabase, data)
+			return m.theseRowsAreAvailableInTableOfDatabase(tableName, DefaultDatabase, Rows(data))
 		})
 }
 
@@ -304,12 +309,12 @@ func (m *Manager) noRowsInTableOfDatabase(tableName, dbName string) error {
 
 var errMissingFileName = errors.New("missing file name")
 
-func loadTableFromFile(filePath *godog.DocString) (d *godog.Table, err error) {
-	if filePath == nil || filePath.String() == "" {
+func loadTableFromFile(filePath string) (rows [][]string, err error) {
+	if filePath == "" {
 		return nil, errMissingFileName
 	}
 
-	f, err := os.Open(filePath.Content)
+	f, err := os.Open(filePath) // nolint:gosec // Intended file inclusion.
 	if err != nil {
 		return nil, err
 	}
@@ -323,29 +328,32 @@ func loadTableFromFile(filePath *godog.DocString) (d *godog.Table, err error) {
 
 	c := csv.NewReader(f)
 
-	rows, err := c.ReadAll()
+	rows, err = c.ReadAll()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CSV: %w", err)
 	}
 
-	d = new(godog.Table)
-
-	for _, r := range rows {
-		row := new(messages.PickleStepArgument_PickleTable_PickleTableRow)
-
-		for _, c := range r {
-			row.Cells = append(row.Cells, &messages.PickleStepArgument_PickleTable_PickleTableRow_PickleTableCell{
-				Value: c,
-			})
-		}
-
-		d.Rows = append(d.Rows, row)
-	}
-
-	return d, nil
+	return rows, nil
 }
 
-func (m *Manager) rowsFromThisFileAreStoredInTableOfDatabase(tableName, dbName string, filePath *godog.DocString) error {
+// Rows converts godog table to a nested slice of strings.
+func Rows(data *godog.Table) [][]string {
+	d := make([][]string, 0, len(data.Rows))
+
+	for _, r := range data.Rows {
+		row := make([]string, 0, len(r.Cells))
+
+		for _, c := range r.Cells {
+			row = append(row, c.Value)
+		}
+
+		d = append(d, row)
+	}
+
+	return d
+}
+
+func (m *Manager) rowsFromThisFileAreStoredInTableOfDatabase(tableName, dbName string, filePath string) error {
 	data, err := loadTableFromFile(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to load rows from file: %w", err)
@@ -354,7 +362,7 @@ func (m *Manager) rowsFromThisFileAreStoredInTableOfDatabase(tableName, dbName s
 	return m.theseRowsAreStoredInTableOfDatabase(tableName, dbName, data)
 }
 
-func (m *Manager) theseRowsAreStoredInTableOfDatabase(tableName, dbName string, data *godog.Table) error {
+func (m *Manager) theseRowsAreStoredInTableOfDatabase(tableName, dbName string, data [][]string) error {
 	instance, ok := m.Instances[dbName]
 	if !ok {
 		return fmt.Errorf("%w %s", errUnknownDatabase, dbName)
@@ -373,7 +381,7 @@ func (m *Manager) theseRowsAreStoredInTableOfDatabase(tableName, dbName string, 
 		return fmt.Errorf("failed to map rows table: %w", err)
 	}
 
-	colNames := ColNames(data.Rows[0].Cells)
+	colNames := data[0]
 
 	storage := instance.Storage
 	stmt := storage.InsertStmt(tableName, rows, sqluct.Columns(colNames...))
@@ -393,7 +401,7 @@ func (m *Manager) theseRowsAreStoredInTableOfDatabase(tableName, dbName string, 
 	return err
 }
 
-func (m *Manager) onlyRowsFromThisFileAreAvailableInTableOfDatabase(tableName, dbName string, filePath *godog.DocString) error {
+func (m *Manager) onlyRowsFromThisFileAreAvailableInTableOfDatabase(tableName, dbName string, filePath string) error {
 	data, err := loadTableFromFile(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to load rows from file: %w", err)
@@ -402,7 +410,7 @@ func (m *Manager) onlyRowsFromThisFileAreAvailableInTableOfDatabase(tableName, d
 	return m.assertRows(tableName, dbName, data, true)
 }
 
-func (m *Manager) onlyTheseRowsAreAvailableInTableOfDatabase(tableName, dbName string, data *godog.Table) error {
+func (m *Manager) onlyTheseRowsAreAvailableInTableOfDatabase(tableName, dbName string, data [][]string) error {
 	return m.assertRows(tableName, dbName, data, true)
 }
 
@@ -410,7 +418,7 @@ func (m *Manager) noRowsAreAvailableInTableOfDatabase(tableName, dbName string) 
 	return m.assertRows(tableName, dbName, nil, true)
 }
 
-func (m *Manager) rowsFromThisFileAreAvailableInTableOfDatabase(tableName, dbName string, filePath *godog.DocString) error {
+func (m *Manager) rowsFromThisFileAreAvailableInTableOfDatabase(tableName, dbName string, filePath string) error {
 	data, err := loadTableFromFile(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to load rows from file: %w", err)
@@ -419,7 +427,7 @@ func (m *Manager) rowsFromThisFileAreAvailableInTableOfDatabase(tableName, dbNam
 	return m.assertRows(tableName, dbName, data, false)
 }
 
-func (m *Manager) theseRowsAreAvailableInTableOfDatabase(tableName, dbName string, data *godog.Table) error {
+func (m *Manager) theseRowsAreAvailableInTableOfDatabase(tableName, dbName string, data [][]string) error {
 	return m.assertRows(tableName, dbName, data, false)
 }
 
@@ -435,7 +443,7 @@ type tableQuery struct {
 	storage       *sqluct.Storage
 	mapper        *TableMapper
 	table         string
-	data          *godog.Table
+	data          [][]string
 	row           interface{}
 	colNames      []string
 	skipWhereCols []string
@@ -449,7 +457,7 @@ func (t *tableQuery) exposeContents(err error) error {
 	var colNames []string
 
 	if t.data != nil {
-		colNames = ColNames(t.data.Rows[0].Cells)
+		colNames = t.data[0]
 	}
 
 	table, queryErr := t.queryExistingRows(t.storage, colNames, qb)
@@ -466,7 +474,7 @@ func (t *tableQuery) checkCount() error {
 	dataCnt := 0
 
 	if t.data != nil {
-		dataCnt = len(t.data.Rows) - 1
+		dataCnt = len(t.data) - 1
 	}
 
 	qb := t.storage.QueryBuilder().
@@ -490,7 +498,7 @@ func (t *tableQuery) checkCount() error {
 	return nil
 }
 
-func (m *Manager) makeTableQuery(tableName, dbName string, data *godog.Table) (*tableQuery, error) {
+func (m *Manager) makeTableQuery(tableName, dbName string, data [][]string) (*tableQuery, error) {
 	instance, ok := m.Instances[dbName]
 	if !ok {
 		return nil, fmt.Errorf("%w %s", errUnknownDatabase, dbName)
@@ -513,7 +521,7 @@ func (m *Manager) makeTableQuery(tableName, dbName string, data *godog.Table) (*
 	}
 
 	if t.data != nil {
-		t.colNames = ColNames(data.Rows[0].Cells)
+		t.colNames = data[0]
 		t.skipWhereCols = make([]string, 0, len(t.colNames))
 		t.postCheck = make([]string, 0, len(t.colNames))
 	}
@@ -628,7 +636,7 @@ func (t *tableQuery) makeReplaces(onSetErr *error) (map[string]string, error) {
 	return replaces, nil
 }
 
-func (m *Manager) assertRows(tableName, dbName string, data *godog.Table, exhaustiveList bool) (err error) {
+func (m *Manager) assertRows(tableName, dbName string, data [][]string, exhaustiveList bool) (err error) {
 	t, err := m.makeTableQuery(tableName, dbName, data)
 	if err != nil {
 		return err
