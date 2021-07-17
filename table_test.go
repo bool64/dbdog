@@ -5,15 +5,8 @@ import (
 	"time"
 
 	"github.com/bool64/dbdog"
-	"github.com/cucumber/godog"
-	"github.com/cucumber/messages-go/v10"
 	"github.com/stretchr/testify/assert"
 	"github.com/swaggest/form/v5"
-)
-
-type (
-	tableRow  = messages.PickleStepArgument_PickleTable_PickleTableRow
-	tableCell = messages.PickleStepArgument_PickleTable_PickleTableRow_PickleTableCell
 )
 
 func TestMapper_SliceFromTable(t *testing.T) {
@@ -27,21 +20,10 @@ func TestMapper_SliceFromTable(t *testing.T) {
 		Emb
 	}
 
-	data := &godog.Table{
-		Rows: []*tableRow{
-			{Cells: []*tableCell{
-				{Value: "a"},
-				{Value: "b"},
-			}},
-			{Cells: []*tableCell{
-				{Value: "1"},
-				{Value: "b1"},
-			}},
-			{Cells: []*tableCell{
-				{Value: "2"},
-				{Value: "b2"},
-			}},
-		},
+	data := [][]string{
+		{"a", "b"},
+		{"1", "b1"},
+		{"2", "b2"},
 	}
 
 	m := &dbdog.TableMapper{

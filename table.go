@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/cucumber/godog"
-	"github.com/cucumber/messages-go/v10"
 	"github.com/swaggest/form/v5"
 )
 
@@ -51,7 +49,7 @@ func (m *TableMapper) Encode(v interface{}) (string, error) {
 }
 
 // SliceFromTable creates a slice from gherkin table, item type is used as slice element type.
-func (m *TableMapper) SliceFromTable(data *godog.Table, item interface{}) (interface{}, error) {
+func (m *TableMapper) SliceFromTable(data [][]string, item interface{}) (interface{}, error) {
 	itemType := reflect.TypeOf(item)
 	if itemType == nil {
 		return nil, errNilItemStruct
@@ -61,7 +59,7 @@ func (m *TableMapper) SliceFromTable(data *godog.Table, item interface{}) (inter
 		itemType = itemType.Elem()
 	}
 
-	result := reflect.MakeSlice(reflect.SliceOf(itemType), len(data.Rows)-1, len(data.Rows)-1)
+	result := reflect.MakeSlice(reflect.SliceOf(itemType), len(data)-1, len(data)-1)
 
 	err := m.IterateTable(IterateConfig{
 		Data: data, Item: item,
@@ -78,20 +76,9 @@ func (m *TableMapper) SliceFromTable(data *godog.Table, item interface{}) (inter
 	return result.Interface(), nil
 }
 
-// ColNames returns a slice of column names.
-func ColNames(cells []*messages.PickleStepArgument_PickleTable_PickleTableRow_PickleTableCell) []string {
-	colNames := make([]string, len(cells))
-
-	for i, col := range cells {
-		colNames[i] = col.Value
-	}
-
-	return colNames
-}
-
 // IterateConfig controls behavior of TableMapper.IterateTable.
 type IterateConfig struct {
-	Data       *godog.Table
+	Data       [][]string
 	SkipDecode func(column, value string) bool
 	Item       interface{}
 	Replaces   map[string]string
@@ -123,11 +110,11 @@ func (m *TableMapper) IterateTable(c IterateConfig) error {
 		m.Decoder = form.NewDecoder()
 	}
 
-	if len(c.Data.Rows) < 2 {
+	if len(c.Data) < 2 {
 		return errRowRequired
 	}
 
-	colNames := ColNames(c.Data.Rows[0].Cells)
+	colNames := c.Data[0]
 
 	itemType, err := itemType(c.Item)
 	if err != nil {
@@ -136,27 +123,27 @@ func (m *TableMapper) IterateTable(c IterateConfig) error {
 
 	values := make(map[string][]string, len(colNames))
 
-	for rowIndex, row := range c.Data.Rows[1:] {
+	for rowIndex, row := range c.Data[1:] {
 		itemBuf := reflect.New(itemType)
 		raw := make([]string, 0, len(colNames))
 
-		for i, cell := range row.Cells {
-			raw = append(raw, cell.Value)
+		for i, cell := range row {
+			raw = append(raw, cell)
 
-			if c.SkipDecode != nil && c.SkipDecode(colNames[i], cell.Value) {
+			if c.SkipDecode != nil && c.SkipDecode(colNames[i], cell) {
 				continue
 			}
 
-			if strings.HasSuffix(cell.Value, "::string") {
-				cell.Value = strings.TrimSuffix(cell.Value, "::string")
+			if strings.HasSuffix(cell, "::string") {
+				cell = strings.TrimSuffix(cell, "::string")
 			}
 
-			if v, found := c.Replaces[cell.Value]; found {
-				cell.Value = v
+			if v, found := c.Replaces[cell]; found {
+				cell = v
 			}
 
-			if cell.Value != null {
-				values[colNames[i]] = []string{cell.Value}
+			if cell != null {
+				values[colNames[i]] = []string{cell}
 			} else {
 				delete(values, colNames[i])
 			}
