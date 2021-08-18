@@ -142,12 +142,14 @@ const DefaultDatabase = "default"
 func (m *Manager) RegisterSteps(s *godog.ScenarioContext) {
 	m.registerPrerequisites(s)
 	m.registerAssertions(s)
-	s.BeforeScenario(func(sc *godog.Scenario) {
+	s.Before(func(ctx context.Context, sc *godog.Scenario) (context.Context, error) {
 		if m.Vars == nil {
 			m.Vars = &shared.Vars{}
 		}
 
 		m.Vars.Reset()
+
+		return ctx, nil
 	})
 }
 

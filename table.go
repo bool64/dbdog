@@ -134,9 +134,7 @@ func (m *TableMapper) IterateTable(c IterateConfig) error {
 				continue
 			}
 
-			if strings.HasSuffix(cell, "::string") {
-				cell = strings.TrimSuffix(cell, "::string")
-			}
+			cell = strings.TrimSuffix(cell, "::string")
 
 			if v, found := c.Replaces[cell]; found {
 				cell = v
