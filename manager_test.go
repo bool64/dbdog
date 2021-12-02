@@ -66,16 +66,24 @@ func TestManager_RegisterContext(t *testing.T) {
 	mock.ExpectExec(`DELETE FROM my_table`).
 		WillReturnResult(driver.ResultNoRows)
 
-	//    And these rows are stored in table "my_table" of database "my_db":
-	//      | id | foo   | bar | created_at           | deleted_at           |
-	//      | 1  | foo-1 | abc   | 2021-01-01T00:00:00Z | NULL                 |
-	//      | 2  | foo-1 | def      | 2021-01-02T00:00:00Z | 2021-01-03T00:00:00Z |
-	//      | 3  | foo-2 | hij      | 2021-01-03T00:00:00Z | 2021-01-03T00:00:00Z |
+	//    And rows from this file are stored in table "my_table" of database "my_db"
+	//    """
+	//    _testdata/rows.csv
+	//    """
 	mock.ExpectExec(`INSERT INTO my_table \(id,created_at,deleted_at,foo,bar\) VALUES .+`).
 		WithArgs(
 			1, mustParseTime("2021-01-01T00:00:00Z"), nil, "foo-1", "abc",
 			2, mustParseTime("2021-01-02T00:00:00Z"), mustParseTime("2021-01-03T00:00:00Z"), "foo-1", "def",
 			3, mustParseTime("2021-01-03T00:00:00Z"), mustParseTime("2021-01-03T00:00:00Z"), "foo-2", "hij",
+		).
+		WillReturnResult(driver.ResultNoRows)
+
+	//    And these rows are stored in table "my_table" of database "my_db":
+	//      | id | foo   | bar | created_at           | deleted_at           |
+	//      | 1  | foo-1 | abc   | 2021-01-01T00:00:00Z | NULL                 |
+	mock.ExpectExec(`INSERT INTO my_table \(id,created_at,deleted_at,foo,bar\) VALUES .+`).
+		WithArgs(
+			1, mustParseTime("2021-01-01T00:00:00Z"), nil, "foo-1", "abc",
 		).
 		WillReturnResult(driver.ResultNoRows)
 

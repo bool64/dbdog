@@ -163,7 +163,9 @@ func (m *Manager) registerPrerequisites(s *godog.ScenarioContext) {
 		})
 
 	s.Step(`these rows are stored in table "([^"]*)" of database "([^"]*)"[:]?$`,
-		m.theseRowsAreStoredInTableOfDatabase)
+		func(tableName, database string, data *godog.Table) error {
+			return m.theseRowsAreStoredInTableOfDatabase(tableName, database, Rows(data))
+		})
 
 	s.Step(`rows from this file are stored in table "([^"]*)" of database "([^"]*)"[:]?$`,
 		func(tableName, database string, filePath *godog.DocString) error {
@@ -321,7 +323,7 @@ func loadTableFromFile(filePath string) (rows [][]string, err error) {
 		return nil, err
 	}
 
-	defer func() {
+	defer func() { // nolint:gosec // False positive: G307: Deferring unsafe method "Close" on type "*os.File" (gosec)
 		clErr := f.Close()
 		if clErr != nil && err == nil {
 			err = clErr
