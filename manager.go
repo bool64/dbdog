@@ -216,7 +216,9 @@ func (m *Manager) registerAssertions(s *godog.ScenarioContext) {
 		m.rowsFromThisFileAreAvailableInTableOfDatabase)
 
 	s.Step(`these rows are available in table "([^"]*)" of database "([^"]*)"[:]?$`,
-		m.theseRowsAreAvailableInTableOfDatabase)
+		func(tableName, database string, data *godog.Table) error {
+			return m.theseRowsAreAvailableInTableOfDatabase(tableName, database, Rows(data))
+		})
 
 	s.Step(`rows from this file are available in table "([^"]*)"[:]?$`,
 		func(tableName string, filePath *godog.DocString) error {
